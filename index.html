@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Grounding DINO · Studio by Pranto</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --bg:#0b0c0e; --surface:#14161b; --surface-2:#1b1e25;
+    --line:#262a33; --line-2:#343a45;
+    --text:#e9e7df; --muted:#8b8c85; --faint:#5e6066;
+    --accent:#c9f24d; --accent-dim:#9bbf2f;
+    --danger:#ff7a7a;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+    --sans:'Familjen Grotesk',system-ui,sans-serif;
+    --r:10px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);
+    -webkit-font-smoothing:antialiased;}
+  body{
+    background-image:
+      radial-gradient(circle at 12% -10%, rgba(201,242,77,.06), transparent 40%),
+      linear-gradient(var(--line) .5px, transparent .5px),
+      linear-gradient(90deg, var(--line) .5px, transparent .5px);
+    background-size:auto, 38px 38px, 38px 38px;
+    background-position:0 0, 0 0, 0 0;
+    background-blend-mode:normal;
+  }
+  body::before{content:"";position:fixed;inset:0;background:rgba(11,12,14,.86);z-index:-1;}
+
+  header{
+    display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+    padding:18px 26px;border-bottom:1px solid var(--line);
+  }
+  .logo{
+    width:34px;height:34px;border:1px solid var(--accent);border-radius:8px;
+    display:grid;place-items:center;color:var(--accent);font-family:var(--mono);
+    font-size:15px;font-weight:500;flex:none;
+  }
+  .titles h1{font-size:18px;font-weight:600;margin:0;letter-spacing:-.01em;}
+  .titles p{margin:2px 0 0;font-size:12px;color:var(--muted);font-family:var(--mono);}
+  .spaceid{margin-left:auto;display:flex;align-items:center;gap:8px;}
+  .spaceid label{font-size:11px;color:var(--faint);font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em;}
+  .spaceid input{
+    background:var(--surface);border:1px solid var(--line-2);color:var(--text);
+    font-family:var(--mono);font-size:13px;padding:8px 11px;border-radius:8px;width:280px;
+  }
+  .spaceid input:focus{outline:none;border-color:var(--accent);}
+
+  main{display:grid;grid-template-columns:330px 1fr;gap:1px;background:var(--line);min-height:calc(100vh - 73px);}
+  .panel{background:var(--bg);padding:22px 24px;}
+  @media(max-width:880px){ main{grid-template-columns:1fr} .spaceid input{width:180px} }
+
+  .field{margin-bottom:20px;}
+  .field > label{display:block;font-size:11px;letter-spacing:.09em;text-transform:uppercase;
+    color:var(--muted);font-family:var(--mono);margin-bottom:8px;}
+  textarea,.txt{
+    width:100%;background:var(--surface);border:1px solid var(--line-2);border-radius:var(--r);
+    color:var(--text);font-family:var(--sans);font-size:14px;padding:11px 13px;resize:vertical;
+  }
+  textarea:focus,.txt:focus{outline:none;border-color:var(--accent);}
+
+  .drop{
+    border:1.5px dashed var(--line-2);border-radius:var(--r);padding:26px 16px;text-align:center;
+    cursor:pointer;transition:.15s;color:var(--muted);font-size:13px;
+  }
+  .drop:hover,.drop.over{border-color:var(--accent);color:var(--text);background:var(--surface);}
+  .drop b{color:var(--accent);font-family:var(--mono);}
+
+  .btn{
+    width:100%;background:var(--accent);color:#10130a;border:none;border-radius:var(--r);
+    font-family:var(--sans);font-weight:600;font-size:15px;padding:13px;cursor:pointer;
+    transition:.15s;letter-spacing:.01em;
+  }
+  .btn:hover{background:#d9ff63;}
+  .btn:disabled{background:var(--line-2);color:var(--faint);cursor:not-allowed;}
+
+  details{margin-top:6px;border-top:1px solid var(--line);padding-top:14px;}
+  summary{cursor:pointer;font-size:11px;letter-spacing:.09em;text-transform:uppercase;
+    color:var(--muted);font-family:var(--mono);margin-bottom:14px;list-style:none;}
+  summary::-webkit-details-marker{display:none}
+  summary::before{content:"▸ ";color:var(--accent);}
+  details[open] summary::before{content:"▾ ";}
+  .mini{margin-bottom:14px}
+  .mini label{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);
+    font-family:var(--mono);margin-bottom:5px}
+  .mini .val{color:var(--accent)}
+  input[type=range]{width:100%;-webkit-appearance:none;appearance:none;height:4px;border-radius:3px;
+    background:var(--line-2);outline:none;cursor:pointer;}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;
+    background:var(--accent);border:2px solid var(--bg);box-shadow:0 0 0 1px var(--accent);}
+  input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:var(--accent);
+    border:2px solid var(--bg);}
+
+  /* canvas / viewport */
+  .viewport{padding:22px 26px;display:flex;flex-direction:column;gap:18px;}
+  .status{font-family:var(--mono);font-size:12px;color:var(--muted);min-height:16px;}
+  .status .ok{color:var(--accent)}
+  .status .err{color:var(--danger)}
+  .stage{
+    background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;
+    display:flex;justify-content:center;align-items:center;min-height:260px;position:relative;
+  }
+  canvas{max-width:100%;border-radius:6px;display:block;}
+  .placeholder{color:var(--faint);font-family:var(--mono);font-size:13px;text-align:center;}
+
+  /* live threshold */
+  .live{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px 20px;}
+  .live-top{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px;}
+  .live-top h3{margin:0;font-size:14px;font-weight:600;}
+  .readout{font-family:var(--mono);font-size:13px;color:var(--muted);}
+  .readout b{color:var(--accent);}
+  .big{font-family:var(--mono);font-size:30px;color:var(--accent);font-weight:500;line-height:1;
+    margin:10px 0 14px;letter-spacing:-.02em;}
+  .ticks{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10px;color:var(--faint);margin-top:6px;}
+
+  /* comparison grid */
+  .grid-wrap h3{font-size:13px;font-weight:600;margin:0 0 4px;letter-spacing:-.01em;}
+  .grid-wrap p{margin:0 0 14px;font-size:12px;color:var(--muted);font-family:var(--mono);}
+  .grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;}
+  @media(max-width:880px){ .grid{grid-template-columns:repeat(2,1fr)} }
+  .cell{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px;text-align:center;}
+  .cell canvas{width:100%;border-radius:4px;}
+  .cell .t{font-family:var(--mono);font-size:11px;color:var(--text);margin-top:7px;}
+  .cell .c{font-family:var(--mono);font-size:11px;color:var(--accent);}
+  .empty{color:var(--faint);font-family:var(--mono);font-size:12px;padding:30px 0;text-align:center;
+    border:1px dashed var(--line);border-radius:10px;}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">⌖</div>
+  <div class="titles">
+    <h1>Grounding DINO ·Studio by Pranto </h1>
+    <p>zero-shot detection — one inference, slider filters locally</p>
+  </div>
+  <div class="spaceid">
+    <label>space</label>
+    <input id="space" value="your-username/grounding-dino-detector" spellcheck="false" />
+  </div>
+</header>
+
+<main>
+  <!-- CONTROLS -->
+  <section class="panel">
+    <div class="field">
+      <label>image</label>
+      <div class="drop" id="drop">
+        <input type="file" id="file" accept="image/*" hidden />
+        drop an image or <b>browse</b>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>prompts</label>
+      <textarea id="prompts" rows="2">a cat, a remote control</textarea>
+    </div>
+
+    <button class="btn" id="run">Run detection</button>
+
+    <details>
+      <summary>server parameters</summary>
+      <div class="mini">
+        <label>text_threshold <span class="val" id="txtV">0.20</span></label>
+        <input type="range" id="txt" min="0" max="1" step="0.01" value="0.20" />
+      </div>
+      <div class="mini">
+        <label>NMS IoU <span class="val" id="iouV">0.50</span></label>
+        <input type="range" id="iou" min="0" max="1" step="0.05" value="0.50" />
+      </div>
+      <div class="mini">
+        <label>max area fraction <span class="val" id="maxV">0.70</span></label>
+        <input type="range" id="maxa" min="0" max="1" step="0.05" value="0.70" />
+      </div>
+      <p style="font-size:11px;color:var(--faint);font-family:var(--mono);margin:4px 0 0;line-height:1.5">
+        These run on the GPU, so changing them needs a re-run. The big threshold
+        slider on the right is free — it just filters the boxes you already have.
+      </p>
+    </details>
+  </section>
+
+  <!-- OUTPUT -->
+  <section class="viewport">
+    <div class="status" id="status">idle · paste your Space id above, add an image, hit run.</div>
+
+    <div class="stage" id="stage">
+      <div class="placeholder" id="ph">no image loaded</div>
+      <canvas id="main" hidden></canvas>
+    </div>
+
+    <div class="live">
+      <div class="live-top">
+        <h3>box_threshold</h3>
+        <div class="readout"><b id="shown">0</b> of <span id="total">0</span> boxes shown</div>
+      </div>
+      <div class="big" id="thVal">0.35</div>
+      <input type="range" id="thresh" min="0" max="1" step="0.01" value="0.35" />
+      <div class="ticks"><span>0.0</span><span>0.25</span><span>0.5</span><span>0.75</span><span>1.0</span></div>
+    </div>
+
+    <div class="grid-wrap">
+      <h3>threshold sensitivity</h3>
+      <p>same boxes, five cutoffs — your notebook's [0.10, 0.25, 0.40, 0.55, 0.70] sweep</p>
+      <div id="grid"><div class="empty">run a detection to populate the sweep</div></div>
+    </div>
+  </section>
+</main>
+
+<script type="module">
+import { Client } from "https://esm.sh/@gradio/client";
+
+const COLORS = ['#c9f24d','#5ad1e6','#ff7a7a','#ffb454','#b18bff',
+                '#5ad19a','#ff8ad4','#7aa7ff','#e6d24d','#ff6b3d'];
+const SWEEP = [0.10, 0.25, 0.40, 0.55, 0.70];
+
+const $ = id => document.getElementById(id);
+const status = (msg, cls='') => { $('status').innerHTML = cls ? `<span class="${cls}">${msg}</span>` : msg; };
+
+let img = null;        // HTMLImageElement
+let imgFile = null;    // File to send
+let allBoxes = [];     // [{x0,y0,x1,y1,label,score}]
+let natW = 0, natH = 0;
+
+// ---------- file handling ----------
+const drop = $('drop'), fileInput = $('file');
+drop.onclick = () => fileInput.click();
+drop.ondragover = e => { e.preventDefault(); drop.classList.add('over'); };
+drop.ondragleave = () => drop.classList.remove('over');
+drop.ondrop = e => { e.preventDefault(); drop.classList.remove('over'); if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]); };
+fileInput.onchange = e => { if (e.target.files[0]) loadFile(e.target.files[0]); };
+
+function loadFile(f){
+  imgFile = f;
+  const url = URL.createObjectURL(f);
+  img = new Image();
+  img.onload = () => {
+    natW = img.naturalWidth; natH = img.naturalHeight;
+    allBoxes = [];
+    $('ph').hidden = true; $('main').hidden = false;
+    drawMain(); renderGrid();
+    $('total').textContent = '0'; $('shown').textContent = '0';
+    status(`loaded ${f.name} · ${natW}×${natH}`, 'ok');
+  };
+  img.src = url;
+}
+
+// ---------- drawing ----------
+function drawBoxes(ctx, scale, boxes){
+  ctx.lineWidth = Math.max(1.5, 2*scale);
+  ctx.font = `${Math.max(10, 12*scale)}px 'JetBrains Mono', monospace`;
+  boxes.forEach((b, i) => {
+    const c = COLORS[i % COLORS.length];
+    const x = b.x0*scale, y = b.y0*scale, w = (b.x1-b.x0)*scale, h = (b.y1-b.y0)*scale;
+    ctx.strokeStyle = c; ctx.strokeRect(x, y, w, h);
+    const tag = `${b.label} ${b.score.toFixed(2)}`;
+    const tw = ctx.measureText(tag).width;
+    const th = Math.max(13, 15*scale);
+    ctx.fillStyle = c;
+    ctx.fillRect(x, Math.max(0, y-th), tw+8, th);
+    ctx.fillStyle = '#10130a';
+    ctx.fillText(tag, x+4, Math.max(th-4, y-4));
+  });
+}
+
+function drawMain(){
+  if (!img) return;
+  const cv = $('main');
+  const maxW = $('stage').clientWidth - 28;
+  const scale = Math.min(1, maxW / natW);
+  cv.width = natW*scale; cv.height = natH*scale;
+  const ctx = cv.getContext('2d');
+  ctx.clearRect(0,0,cv.width,cv.height);
+  ctx.drawImage(img, 0, 0, cv.width, cv.height);
+  const t = parseFloat($('thresh').value);
+  const vis = allBoxes.filter(b => b.score >= t);
+  drawBoxes(ctx, scale, vis);
+  $('shown').textContent = vis.length;
+  $('total').textContent = allBoxes.length;
+}
+
+function renderGrid(){
+  const grid = $('grid');
+  if (!img){ grid.innerHTML = '<div class="empty">run a detection to populate the sweep</div>'; return; }
+  grid.innerHTML = '';
+  const cellW = (grid.clientWidth/5) - 14;
+  const scale = Math.min(1, cellW / natW);
+  SWEEP.forEach(t => {
+    const cell = document.createElement('div'); cell.className = 'cell';
+    const cv = document.createElement('canvas');
+    cv.width = natW*scale; cv.height = natH*scale;
+    const ctx = cv.getContext('2d');
+    ctx.drawImage(img, 0, 0, cv.width, cv.height);
+    const vis = allBoxes.filter(b => b.score >= t);
+    drawBoxes(ctx, scale, vis);
+    cell.appendChild(cv);
+    const tl = document.createElement('div'); tl.className='t'; tl.textContent = `t = ${t.toFixed(2)}`;
+    const cl = document.createElement('div'); cl.className='c'; cl.textContent = `${vis.length} det`;
+    cell.appendChild(tl); cell.appendChild(cl);
+    grid.appendChild(cell);
+  });
+}
+
+// ---------- live slider + advanced readouts ----------
+$('thresh').oninput = e => { $('thVal').textContent = parseFloat(e.target.value).toFixed(2); drawMain(); };
+[['txt','txtV'],['iou','iouV'],['maxa','maxV']].forEach(([s,v]) =>
+  $(s).oninput = e => $(v).textContent = parseFloat(e.target.value).toFixed(2));
+window.addEventListener('resize', () => { drawMain(); renderGrid(); });
+
+// ---------- run detection ----------
+$('run').onclick = async () => {
+  if (!imgFile){ status('add an image first.', 'err'); return; }
+  const spaceId = $('space').value.trim();
+  if (!spaceId || spaceId.includes('your-username')){ status('set your real Space id (username/space-name) up top.', 'err'); return; }
+
+  $('run').disabled = true;
+  try {
+    status('connecting to Space… (cold start can take 30–60s)');
+    const client = await Client.connect(spaceId);
+    status('running inference on GPU…');
+    const result = await client.predict("/detect", {
+      image: imgFile,
+      prompts_text: $('prompts').value,
+      box_threshold: 0.05,                      // low → return everything
+      text_threshold: parseFloat($('txt').value),
+      iou_threshold: parseFloat($('iou').value),
+      max_area_fraction: parseFloat($('maxa').value),
+    });
+
+    // find the JSON payload among the outputs
+    let payload = null;
+    for (const d of result.data){
+      if (d && typeof d === 'object' && Array.isArray(d.boxes)){ payload = d; break; }
+    }
+    if (!payload){ status('unexpected response shape from Space.', 'err'); return; }
+
+    allBoxes = payload.boxes.sort((a,b)=>b.score-a.score);
+    drawMain(); renderGrid();
+    status(`done · ${allBoxes.length} candidate boxes returned · drag the slider`, 'ok');
+  } catch (err){
+    console.error(err);
+    status('error: ' + (err?.message || err) + ' — check the Space id and that the Space is running.', 'err');
+  } finally {
+    $('run').disabled = false;
+  }
+};
+</script>
+</body>
+</html>
