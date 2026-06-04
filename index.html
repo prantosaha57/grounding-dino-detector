@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Grounding DINO · threshold studio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --bg:#0b0c0e; --surface:#14161b; --surface-2:#1b1e25;
+    --line:#262a33; --line-2:#343a45;
+    --text:#e9e7df; --muted:#8b8c85; --faint:#5e6066;
+    --accent:#c9f24d; --danger:#ff7a7a; --warn:#ffb454;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+    --sans:'Familjen Grotesk',system-ui,sans-serif;
+    --r:10px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font-smoothing:antialiased;}
+  body{
+    background-image:
+      radial-gradient(circle at 12% -10%, rgba(201,242,77,.06), transparent 40%),
+      linear-gradient(var(--line) .5px, transparent .5px),
+      linear-gradient(90deg, var(--line) .5px, transparent .5px);
+    background-size:auto, 38px 38px, 38px 38px;
+  }
+  body::before{content:"";position:fixed;inset:0;background:rgba(11,12,14,.86);z-index:-1;}
+
+  header{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:18px 26px;border-bottom:1px solid var(--line);}
+  .logo{width:34px;height:34px;border:1px solid var(--accent);border-radius:8px;display:grid;place-items:center;
+    color:var(--accent);font-family:var(--mono);font-size:15px;flex:none;}
+  .titles h1{font-size:18px;font-weight:600;margin:0;letter-spacing:-.01em;}
+  .titles p{margin:2px 0 0;font-size:12px;color:var(--muted);font-family:var(--mono);}
+  .spacebox{margin-left:auto;text-align:right;}
+  .spacebox .lbl{font-size:10px;color:var(--faint);font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em;}
+  .spacebox a{display:inline-flex;align-items:center;gap:6px;color:var(--accent);font-family:var(--mono);font-size:13px;text-decoration:none;}
+  .spacebox a:hover{text-decoration:underline;}
+  .spacebox .hint{font-size:11px;color:var(--muted);font-family:var(--mono);margin-top:2px;}
+
+  main{display:grid;grid-template-columns:330px 1fr;gap:1px;background:var(--line);min-height:calc(100vh - 73px);}
+  .panel{background:var(--bg);padding:22px 24px;}
+  @media(max-width:900px){ main{grid-template-columns:1fr} }
+
+  .field{margin-bottom:20px;}
+  .field > label{display:block;font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);
+    font-family:var(--mono);margin-bottom:8px;}
+  textarea{width:100%;background:var(--surface);border:1px solid var(--line-2);border-radius:var(--r);color:var(--text);
+    font-family:var(--sans);font-size:14px;padding:11px 13px;resize:vertical;}
+  textarea:focus{outline:none;border-color:var(--accent);}
+
+  .drop{border:1.5px dashed var(--line-2);border-radius:var(--r);padding:26px 16px;text-align:center;cursor:pointer;
+    transition:.15s;color:var(--muted);font-size:13px;}
+  .drop:hover,.drop.over{border-color:var(--accent);color:var(--text);background:var(--surface);}
+  .drop b{color:var(--accent);font-family:var(--mono);}
+
+  .btn{width:100%;background:var(--accent);color:#10130a;border:none;border-radius:var(--r);font-family:var(--sans);
+    font-weight:600;font-size:15px;padding:13px;cursor:pointer;transition:.15s;}
+  .btn:hover{background:#d9ff63;}
+  .btn:disabled{background:var(--line-2);color:var(--faint);cursor:not-allowed;}
+
+  details{margin-top:6px;border-top:1px solid var(--line);padding-top:14px;}
+  summary{cursor:pointer;font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);
+    font-family:var(--mono);margin-bottom:14px;list-style:none;}
+  summary::-webkit-details-marker{display:none}
+  summary::before{content:"▸ ";color:var(--accent);}
+  details[open] summary::before{content:"▾ ";}
+  .mini{margin-bottom:14px}
+  .mini label{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:5px}
+  .mini .val{color:var(--accent)}
+  input[type=range]{width:100%;-webkit-appearance:none;appearance:none;height:4px;border-radius:3px;background:var(--line-2);outline:none;cursor:pointer;}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:var(--accent);border:2px solid var(--bg);box-shadow:0 0 0 1px var(--accent);}
+  input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:var(--accent);border:2px solid var(--bg);}
+
+  .viewport{padding:22px 26px;display:flex;flex-direction:column;gap:18px;}
+  .status{font-family:var(--mono);font-size:12px;color:var(--muted);min-height:16px;}
+  .status .ok{color:var(--accent)} .status .err{color:var(--danger)}
+
+  /* wake banner */
+  .banner{display:none;border:1px solid var(--warn);background:rgba(255,180,84,.08);border-radius:12px;padding:14px 16px;
+    font-family:var(--mono);font-size:13px;color:var(--text);line-height:1.6;}
+  .banner.show{display:block;}
+  .banner a{color:var(--warn);font-weight:600;}
+  .banner .step{color:var(--muted);}
+
+  /* matplotlib-style figure (the hero output) */
+  .figwrap{background:#ffffff;border-radius:14px;padding:6px;border:1px solid var(--line);overflow-x:auto;}
+  .figwrap canvas{display:block;margin:0 auto;}
+  .fig-empty{background:var(--surface);border:1px dashed var(--line);border-radius:14px;color:var(--faint);
+    font-family:var(--mono);font-size:13px;text-align:center;padding:48px 0;}
+  .caption{font-family:var(--mono);font-size:11px;color:var(--faint);margin:-8px 0 0;}
+
+  /* interactive explorer */
+  .explore{display:grid;grid-template-columns:1fr 280px;gap:16px;}
+  @media(max-width:900px){ .explore{grid-template-columns:1fr} }
+  .stage{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px;display:flex;
+    justify-content:center;align-items:center;min-height:240px;}
+  .stage canvas{max-width:100%;border-radius:6px;}
+  .stage .ph{color:var(--faint);font-family:var(--mono);font-size:13px;}
+  .live{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px;align-self:start;}
+  .live h3{margin:0 0 2px;font-size:13px;font-weight:600;}
+  .readout{font-family:var(--mono);font-size:12px;color:var(--muted);}
+  .readout b{color:var(--accent);}
+  .big{font-family:var(--mono);font-size:28px;color:var(--accent);margin:8px 0 12px;line-height:1;}
+  .ticks{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10px;color:var(--faint);margin-top:6px;}
+  .sec{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-family:var(--mono);}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">⌖</div>
+  <div class="titles">
+    <h1>Grounding DINO · threshold studio</h1>
+    <p>zero-shot detection — one inference, thresholds compared locally</p>
+  </div>
+  <div class="spacebox">
+    <div class="lbl">space</div>
+    <a id="spacelink" href="https://huggingface.co/spaces/prantosaha59/grounding-dino-detector" target="_blank" rel="noopener">prantosaha59/grounding-dino-detector ↗</a>
+    <div class="hint">asleep? open it once to wake it</div>
+  </div>
+</header>
+
+<main>
+  <section class="panel">
+    <div class="field">
+      <label>image</label>
+      <div class="drop" id="drop">
+        <input type="file" id="file" accept="image/*" hidden />
+        drop an image or <b>browse</b>
+      </div>
+    </div>
+    <div class="field">
+      <label>prompts</label>
+      <textarea id="prompts" rows="2">a cat, a remote control</textarea>
+    </div>
+    <button class="btn" id="run">Run detection</button>
+    <details>
+      <summary>server parameters</summary>
+      <div class="mini"><label>text_threshold <span class="val" id="txtV">0.20</span></label>
+        <input type="range" id="txt" min="0" max="1" step="0.01" value="0.20" /></div>
+      <div class="mini"><label>NMS IoU <span class="val" id="iouV">0.50</span></label>
+        <input type="range" id="iou" min="0" max="1" step="0.05" value="0.50" /></div>
+      <div class="mini"><label>max area fraction <span class="val" id="maxV">0.70</span></label>
+        <input type="range" id="maxa" min="0" max="1" step="0.05" value="0.70" /></div>
+      <p style="font-size:11px;color:var(--faint);font-family:var(--mono);margin:4px 0 0;line-height:1.5">
+        These run on the GPU — changing them needs a re-run. The five-panel figure
+        and the explorer slider both reuse the boxes from one inference.</p>
+    </details>
+  </section>
+
+  <section class="viewport">
+    <div class="status" id="status">idle · add an image, then run detection.</div>
+
+    <div class="banner" id="banner">
+      <b>Couldn't reach the Space — it's probably asleep.</b><br>
+      <span class="step">1.</span> Open <a id="bannerlink" href="https://huggingface.co/spaces/prantosaha59/grounding-dino-detector" target="_blank" rel="noopener">the Space ↗</a>
+      &nbsp;<span class="step">2.</span> wait until the badge says <b style="color:var(--accent)">Running</b>
+      &nbsp;<span class="step">3.</span> come back and hit Run again.
+    </div>
+
+    <div class="sec">output — threshold sweep [0.1, 0.25, 0.4, 0.55, 0.7]</div>
+    <div id="figslot"><div class="fig-empty">run a detection to render the figure</div></div>
+    <p class="caption" id="cap"></p>
+
+    <div class="sec">explorer — drag to set any threshold</div>
+    <div class="explore">
+      <div class="stage" id="stage"><div class="ph">no detections yet</div></div>
+      <div class="live">
+        <h3>box_threshold</h3>
+        <div class="readout"><b id="shown">0</b> of <span id="total">0</span> boxes</div>
+        <div class="big" id="thVal">0.35</div>
+        <input type="range" id="thresh" min="0" max="1" step="0.01" value="0.35" />
+        <div class="ticks"><span>0.0</span><span>0.5</span><span>1.0</span></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script type="module">
+import { Client } from "https://esm.sh/@gradio/client";
+
+const SPACE_ID = "prantosaha59/grounding-dino-detector";
+const COLORS = ['#e6194B','#f58231','#3cb44b','#4363d8','#911eb4',
+                '#42d4f4','#f032e6','#bfef45','#fabed4','#469990'];
+const SWEEP = [0.10, 0.25, 0.40, 0.55, 0.70];
+const fmt = t => (+t.toFixed(2)).toString();   // 0.10 -> "0.1"
+
+const $ = id => document.getElementById(id);
+const status = (m,c='') => { $('status').innerHTML = c ? `<span class="${c}">${m}</span>` : m; };
+const showBanner = on => $('banner').classList.toggle('show', on);
+
+let img=null, imgFile=null, allBoxes=[], natW=0, natH=0;
+
+// ---- file handling ----
+const drop=$('drop'), fileInput=$('file');
+drop.onclick=()=>fileInput.click();
+drop.ondragover=e=>{e.preventDefault();drop.classList.add('over');};
+drop.ondragleave=()=>drop.classList.remove('over');
+drop.ondrop=e=>{e.preventDefault();drop.classList.remove('over');if(e.dataTransfer.files[0])loadFile(e.dataTransfer.files[0]);};
+fileInput.onchange=e=>{if(e.target.files[0])loadFile(e.target.files[0]);};
+
+function loadFile(f){
+  imgFile=f;
+  img=new Image();
+  img.onload=()=>{
+    natW=img.naturalWidth; natH=img.naturalHeight; allBoxes=[];
+    $('stage').innerHTML='<canvas id="main"></canvas>';
+    $('figslot').innerHTML='<div class="fig-empty">image ready — hit Run detection</div>';
+    $('cap').textContent=''; $('total').textContent='0'; $('shown').textContent='0';
+    drawMain();
+    status(`loaded ${f.name} · ${natW}×${natH}`,'ok');
+  };
+  img.src=URL.createObjectURL(f);
+}
+
+// ---- box drawing helper (matplotlib-ish) ----
+function drawBoxesAt(ctx, ox, oy, scale, boxes, lw, fs){
+  ctx.lineWidth=lw; ctx.font=`${fs}px 'JetBrains Mono', monospace`; ctx.textBaseline='alphabetic';
+  boxes.forEach((b,i)=>{
+    const c=COLORS[i%COLORS.length];
+    const x=ox+b.x0*scale, y=oy+b.y0*scale, w=(b.x1-b.x0)*scale, h=(b.y1-b.y0)*scale;
+    ctx.strokeStyle=c; ctx.strokeRect(x,y,w,h);
+    const tag=`${b.label} ${b.score.toFixed(2)}`;
+    const tw=ctx.measureText(tag).width, th=fs+5;
+    ctx.fillStyle=c; ctx.fillRect(x, Math.max(oy,y-th), tw+7, th);
+    ctx.fillStyle='#ffffff'; ctx.fillText(tag, x+3.5, Math.max(oy+fs+1, y-4));
+  });
+}
+
+// ---- the hero matplotlib-style 5-panel figure ----
+function renderFigure(){
+  const slot=$('figslot');
+  if(!img||!allBoxes.length===false && !img){ return; }
+  if(!img){ slot.innerHTML='<div class="fig-empty">run a detection to render the figure</div>'; return; }
+
+  const dpr=window.devicePixelRatio||1;
+  const innerW=Math.min(slot.clientWidth-12, 1500);
+  const pad=10, gap=12, titleH=38;
+  const panelW=(innerW - pad*2 - gap*4)/5;
+  const scale=panelW/natW;
+  const imgH=natH*scale;
+  const figW=innerW, figH=pad*2+titleH+imgH;
+
+  const cv=document.createElement('canvas');
+  cv.width=figW*dpr; cv.height=figH*dpr;
+  cv.style.width=figW+'px'; cv.style.height=figH+'px';
+  const ctx=cv.getContext('2d'); ctx.scale(dpr,dpr);
+  ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,figW,figH);
+
+  const lw=Math.max(1.2, 1.8*scale);
+  const fs=Math.max(8, Math.min(11, 11*scale*1.4));
+
+  SWEEP.forEach((t,i)=>{
+    const ox=pad+i*(panelW+gap), oy=pad+titleH;
+    const vis=allBoxes.filter(b=>b.score>=t);
+    // titles
+    ctx.fillStyle='#111'; ctx.textAlign='center';
+    ctx.font="500 12px 'Familjen Grotesk', sans-serif";
+    ctx.fillText(`threshold = ${fmt(t)}`, ox+panelW/2, 16);
+    ctx.fillStyle='#444'; ctx.font="11px 'Familjen Grotesk', sans-serif";
+    ctx.fillText(`${vis.length} detections`, ox+panelW/2, 31);
+    ctx.textAlign='left';
+    // image + boxes
+    ctx.drawImage(img, ox, oy, panelW, imgH);
+    drawBoxesAt(ctx, ox, oy, scale, vis, lw, fs);
+  });
+
+  slot.innerHTML=''; slot.appendChild(cv);
+  $('cap').textContent=`${allBoxes.length} candidate boxes from one inference · filtered at each cutoff client-side`;
+}
+
+// ---- explorer single canvas ----
+function drawMain(){
+  const cv=$('main'); if(!cv||!img) return;
+  const maxW=$('stage').clientWidth-24;
+  const scale=Math.min(1, maxW/natW);
+  const dpr=window.devicePixelRatio||1;
+  cv.width=natW*scale*dpr; cv.height=natH*scale*dpr;
+  cv.style.width=(natW*scale)+'px'; cv.style.height=(natH*scale)+'px';
+  const ctx=cv.getContext('2d'); ctx.scale(dpr,dpr);
+  ctx.drawImage(img,0,0,natW*scale,natH*scale);
+  const t=parseFloat($('thresh').value);
+  const vis=allBoxes.filter(b=>b.score>=t);
+  drawBoxesAt(ctx,0,0,scale,vis,Math.max(1.5,2*scale),Math.max(10,12*scale));
+  $('shown').textContent=vis.length; $('total').textContent=allBoxes.length;
+}
+
+$('thresh').oninput=e=>{$('thVal').textContent=parseFloat(e.target.value).toFixed(2);drawMain();};
+[['txt','txtV'],['iou','iouV'],['maxa','maxV']].forEach(([s,v])=>$(s).oninput=e=>$(v).textContent=parseFloat(e.target.value).toFixed(2));
+window.addEventListener('resize',()=>{drawMain();renderFigure();});
+
+// ---- run ----
+$('run').onclick=async()=>{
+  if(!imgFile){status('add an image first.','err');return;}
+  $('run').disabled=true; showBanner(false);
+  let client;
+  try{
+    status('connecting to Space… (cold start can take 30–60s)');
+    client=await Client.connect(SPACE_ID);
+  }catch(err){
+    console.error(err);
+    status('could not connect to the Space.','err');
+    showBanner(true);
+    $('run').disabled=false; return;
+  }
+  try{
+    status('running inference on GPU…');
+    const result=await client.predict("/detect",{
+      image:imgFile, prompts_text:$('prompts').value,
+      box_threshold:0.05,
+      text_threshold:parseFloat($('txt').value),
+      iou_threshold:parseFloat($('iou').value),
+      max_area_fraction:parseFloat($('maxa').value),
+    });
+    let payload=null, errLog=null;
+    for(const d of result.data){
+      if(d&&typeof d==='object'&&Array.isArray(d.boxes)) payload=d;
+      if(typeof d==='string'&&d.trim()) errLog=d;
+    }
+    if(payload&&payload.error&&!payload.boxes.length){ status('Space returned an error (see console).','err'); console.error(payload.error||errLog); return; }
+    if(!payload){ status('unexpected response shape (see console).','err'); console.error(result.data); return; }
+    allBoxes=payload.boxes.slice().sort((a,b)=>b.score-a.score);
+    renderFigure(); drawMain();
+    status(`done · ${allBoxes.length} candidate boxes · ${$('prompts').value}`,'ok');
+  }catch(err){
+    console.error(err);
+    status('inference error: '+(err?.message||err)+' (see console).','err');
+  }finally{ $('run').disabled=false; }
+};
+</script>
+</body>
+</html>
